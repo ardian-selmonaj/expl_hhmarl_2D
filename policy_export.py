@@ -9,18 +9,18 @@ from models.ac_models_hetero import Esc1, Esc2, Fight1, Fight2
 
 #define experiment folder name
 LEVEL = 3
-MODE = 'fight'
-EXP_DIR = f'Level{LEVEL}_{MODE}'
+MODE = 'escape'
+EXP_DIR = f'L{LEVEL}_{MODE}_2-vs-2'
 
 #define policy folder name
 POL_DIR = 'policies'
 
-if MODE == "fight":
-    ModelCatalog.register_custom_model(f"ac1_model",Fight1)
-    ModelCatalog.register_custom_model(f"ac2_model",Fight2)
-else:
+if MODE == "escape":
     ModelCatalog.register_custom_model(f"ac1_model_esc",Esc1)
     ModelCatalog.register_custom_model(f"ac2_model_esc",Esc2)
+else:
+    ModelCatalog.register_custom_model(f"ac1_model",Fight1)
+    ModelCatalog.register_custom_model(f"ac2_model",Fight2)
 
 for i in range(1,3):
     check = os.path.join(os.path.dirname(__file__), 'results', EXP_DIR, 'checkpoint', 'policies', f'ac{i}_policy')

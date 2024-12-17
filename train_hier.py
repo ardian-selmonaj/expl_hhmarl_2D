@@ -1,5 +1,6 @@
 """
 Main file for training the high-level commander policy.
+3-vs-3 setting
 """
 
 import os
@@ -22,7 +23,8 @@ from config import Config
 from envs.env_hier import HighLevelEnv
 
 N_OPP_HL = 2 #change for sensing
-ACT_DIM = N_OPP_HL+1
+ACT_DIM = N_OPP_HL+2 # {0,1,2}, 0= escype, 1,2=fight with respective low-level observation for fight policy
+#change Act_Dim to N_OPP_HL +2 to include 'engage'.
 OBS_DIM = 14+10*N_OPP_HL
 
 def update_logs(args, log_dir):
@@ -92,7 +94,7 @@ def evaluate(args, algo, env, epoch):
 def make_checkpoint(args, algo, log_dir, epoch, env=None):
     algo.save()
     update_logs(args, log_dir)
-    if args.eval and epoch%500==0:
+    if args.eval and epoch%200==0:
         for _ in range(2):
             evaluate(args, algo, env, epoch)
 

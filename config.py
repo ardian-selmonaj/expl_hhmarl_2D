@@ -14,12 +14,13 @@ class Config(object):
         parser = argparse.ArgumentParser(description='HHMARL2D Training Config')
 
         # training mode
-        parser.add_argument('--level', type=int, default=1, help='Training Level')
+        parser.add_argument('--level', type=int, default=3, help='Training Level')
         parser.add_argument('--horizon', type=int, default=500, help='Length of horizon')
         parser.add_argument('--agent_mode', type=str, default="fight", help='Agent mode: Fight or Escape')
-        parser.add_argument('--num_agents', type=int, default=2 if mode==0 else 3, help='Number of (trainable) agents')
-        parser.add_argument('--num_opps', type=int, default=2 if mode==0 else 3, help='Number of opponents')
-        parser.add_argument('--total_num', type=int, default=4 if mode==0 else 6, help='Total number of aircraft')
+        parser.add_argument('--engage', type=bool, default=False, help='Engage mode')
+        parser.add_argument('--num_agents', type=int, default=2 if mode==0 else 2, help='Number of (trainable) agents')
+        parser.add_argument('--num_opps', type=int, default=2 if mode==0 else 2, help='Number of opponents')
+        parser.add_argument('--total_num', type=int, default=4 if mode==0 else 4, help='Total number of aircraft')
         parser.add_argument('--hier_opp_fight_ratio', type=int, default=75, help='Opponent fight policy selection probability [in %].')
 
         # env & training params
@@ -42,12 +43,12 @@ class Config(object):
         parser.add_argument('--rew_scale', type=int, default=1, help='Reward scale')
         parser.add_argument('--esc_dist_rew', type=bool, default=False, help='Activate per-time-step reward for Escape Training.')
         parser.add_argument('--hier_action_assess', type=bool, default=True, help='Give action rewards to guide hierarchical training.')
-        parser.add_argument('--friendly_kill', type=bool, default=True, help='Consider friendly kill or not.')
+        parser.add_argument('--friendly_kill', type=bool, default=False, help='Consider friendly kill or not.')
         parser.add_argument('--friendly_punish', type=bool, default=False, help='If friendly kill occurred, if both agents to punish.')
 
         # eval
         parser.add_argument('--eval_info', type=bool, default=True if mode==2 else False, help='Provide eval statistic in step() function or not. Dont change for evaluation.')
-        parser.add_argument('--eval_hl', type=bool, default=False, help='True=evaluation with Commander, False=evaluation of low-level policies.')
+        parser.add_argument('--eval_hl', type=bool, default=True, help='True=evaluation with Commander, False=evaluation of low-level policies.')
         parser.add_argument('--eval_level_ag', type=int, default=5, help='Agent low-level for evaluation.')
         parser.add_argument('--eval_level_opp', type=int, default=4, help='Opponent low-level for evaluation.')
         
@@ -59,7 +60,10 @@ class Config(object):
     def set_metrics(self):
 
         #self.args.log_name = f'Commander_{datetime.datetime.now().strftime("%Y-%m-%d_%H:%M")}'
-        self.args.log_name = f'L{self.args.level}_{self.args.agent_mode}_{self.args.num_agents}-vs-{self.args.num_opps}' if self.mode == 0 else f'Commander_{self.args.num_agents}_vs_{self.args.num_opps}'
+        #self.args.log_name = f'L{self.args.level}_{self.args.agent_mode}_{self.args.num_agents}-vs-{self.args.num_opps}' if self.mode == 0 else f'Commander_N3'
+        self.args.log_name = 'Commander_N5'
+        #if self.args.engage:
+        #    self.args.log_name = f'L{self.args.level}_engage_VK_{self.args.num_agents}-vs-{self.args.num_opps}'
         self.args.log_path = os.path.join(os.path.dirname(__file__), 'results', self.args.log_name)
 
         if not self.args.restore and self.mode==0:
@@ -74,7 +78,9 @@ class Config(object):
                     try:
                         if self.args.agent_mode=="fight":
                             # take previous pi_fight
-                            self.args.restore_path = os.path.join(os.path.dirname(__file__), 'results', f'L{self.args.level-1}_{self.args.agent_mode}_{self.args.num_agents}-vs-{self.args.num_opps}', 'checkpoint')
+                            #self.args.restore_path = os.path.join(os.path.dirname(__file__), 'results', f'L{self.args.level-1}_{self.args.agent_mode}_{self.args.num_agents}-vs-{self.args.num_opps}', 'checkpoint')
+                            #self.args.restore_path = "/home/sardian/expl_hhmarl_2D/results/L3_fight_2-vs-2_T400_Am300/checkpoint"
+                            self.args.restore_path = "/home/sardian/expl_hhmarl_2D/results/L2_engage_VK+RP_2-vs-2/checkpoint"
                         else:
                             # escape-vs-pi_fight
                             self.args.restore_path = os.path.join(os.path.dirname(__file__), 'results', f'L3_{self.args.agent_mode}_{self.args.num_agents}-vs-{self.args.num_opps}', 'checkpoint')
@@ -92,7 +98,8 @@ class Config(object):
             self.args.log_path = os.path.join(os.path.dirname(__file__), 'results', self.args.log_name)
 
         if self.mode == 0:
-            horizon_level = {1: 150, 2:200, 3:300, 4:350, 5:400}
+            #horizon_level = {1: 150, 2:200, 3:300, 4:350, 5:400}
+            horizon_level = {1: 150, 2:200, 3:350, 4:450, 5:500}
             self.args.horizon = horizon_level[self.args.level]
         else:
             self.args.horizon = 500

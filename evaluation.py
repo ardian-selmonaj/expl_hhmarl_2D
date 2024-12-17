@@ -15,8 +15,8 @@ ModelCatalog.register_custom_model("commander_model",CommanderGru)
 N_OPP_HL = 2 #sensing
 OBS_DIM = 14+10*N_OPP_HL
 
-MODEL_NAME = "Commander_3_vs_3" #name of commander model in folder 'results'
-N_EVALS = 1000
+MODEL_NAME = "Commander_N2" #name of commander model in folder 'results'
+N_EVALS = 5
 
 
 def cc_obs(obs):
@@ -69,13 +69,18 @@ def postprocess_eval(ev, eval_file):
     lose = (ev["opps_win"] / N_EVALS) * 100
     draw = (ev["draw"] / N_EVALS) * 100
     fight = (ev["agent_fight"] / ev["agent_steps"]) *100
+    fight_engage = (ev["agent_fight_engage"] / ev["agent_steps"]) *100
     esc = (ev["agent_escape"] / ev["agent_steps"]) *100
     fight_opp = (ev["opp_fight"] / ev["opp_steps"]) *100
+    fight_engage_opp = (ev["opp_fight_engage"] / ev["opp_steps"]) *100
     esc_opp = (ev["opp_escape"] / ev["opp_steps"]) *100
     opp1 = (ev["opp1"] / ev["agent_fight"]) *100
     opp2 = (ev["opp2"] / ev["agent_fight"]) *100
     opp3 = (ev["opp3"] / ev["agent_fight"]) *100
-    evals = {"win":win, "lose":lose, "draw":draw, "fight":fight, "esc":esc, "fight_opp":fight_opp, "esc_opp":esc_opp, "opp1":opp1, "opp2":opp2, "opp3":opp3}
+    opp4 = (ev["opp4"] / ev["agent_fight"]) *100
+    opp5 = (ev["opp5"] / ev["agent_fight"]) *100
+    evals = {"win":win, "lose":lose, "draw":draw, "fight":fight, "fight_engage":fight_engage, "esc":esc, "fight_opp":fight_opp, "fight_engage_opp":fight_engage_opp, "esc_opp":esc_opp, 
+            "opp1":opp1, "opp2":opp2, "opp3":opp3, "opp4":opp4, "opp5":opp5}
     for k,v in evals.items():
         print(f"{k}: {round(v,2)}")
     with open(eval_file, 'w') as file:
@@ -97,9 +102,9 @@ if __name__ == "__main__":
 
     # if evaluating purely low-level policies, we don't need commander.
     policy = Policy.from_checkpoint(check, ["commander_policy"])["commander_policy"] if args.eval_hl else None
-    eval_stats = {"agents_win": 0, "opps_win": 0, "draw": 0, "agent_fight": 0, "agent_escape":0, "opp_fight":0, "opp_escape":0, \
+    eval_stats = {"agents_win": 0, "opps_win": 0, "draw": 0, "agent_fight": 0, "agent_fight_engage":0, "agent_escape":0, "opp_fight":0, "opp_fight_engage":0, "opp_escape":0, \
                   "agent_steps":0, "opp_steps":0, "total_n_actions":0 ,\
-                    "opp1":0, "opp2":0, "opp3":0}
+                    "opp1":0, "opp2":0, "opp3":0, "opp4":0, "opp5":0}
     iters = tqdm.trange(0, N_EVALS,  leave=True)
     for n in iters:
         evaluate(args, env, policy, n, eval_stats, eval_log)

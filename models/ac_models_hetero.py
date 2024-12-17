@@ -8,16 +8,15 @@ import torch.nn.functional as F
 from ray.rllib.policy.rnn_sequencing import add_time_dimension
 torch, nn = try_import_torch()
 
-ACTION_DIM_AC1 = 4
-ACTION_DIM_AC2 = 3
+#ACTION_DIM_AC1 = 4
+ACTION_DIM_AC2 = ACTION_DIM_AC1 = 3
+#OBS_AC1 = 26
+OBS_AC2 = OBS_AC1 = 24
+#OBS_ESC_AC1 = 30
+OBS_ESC_AC2 = OBS_ESC_AC1 = 29
 
-OBS_AC1 = 26
-OBS_AC2 = 24
-OBS_ESC_AC1 = 30
-OBS_ESC_AC2 = 29
-
-SS_AGENT_AC1 = 12
-SS_AGENT_AC2 = 10
+#SS_AGENT_AC1 = 12
+SS_AGENT_AC2 = SS_AGENT_AC1 = 10
 
 SHARED_LAYER = SlimFC(
     500,
@@ -44,7 +43,7 @@ class Esc1(TorchModelV2, nn.Module):
         self._v1 = None
 
         self.inp1 = SlimFC(
-            7,
+            6,
             150,
             activation_fn= nn.Tanh,
             initializer=torch.nn.init.orthogonal_
@@ -84,9 +83,9 @@ class Esc1(TorchModelV2, nn.Module):
 
     @override(ModelV2)
     def forward(self, input_dict, state, seq_lens):
-        self._inp1 = input_dict["obs"]["obs_1_own"][:,:7]
-        self._inp2 = input_dict["obs"]["obs_1_own"][:,7:25]
-        self._inp3 = input_dict["obs"]["obs_1_own"][:,25:]
+        self._inp1 = input_dict["obs"]["obs_1_own"][:,:6]
+        self._inp2 = input_dict["obs"]["obs_1_own"][:,6:24]
+        self._inp3 = input_dict["obs"]["obs_1_own"][:,24:]
         self._v1 = torch.cat((input_dict["obs"]["obs_1_own"], input_dict["obs"]["act_1_own"], input_dict["obs"]["obs_2"], input_dict["obs"]["act_2"]),dim=1)
 
         x = torch.cat((self.inp1(self._inp1), self.inp2(self._inp2), self.inp3(self._inp3)),dim=1) 

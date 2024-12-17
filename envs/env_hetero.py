@@ -6,12 +6,12 @@ import numpy as np
 from gymnasium import spaces
 from .env_base import HHMARLBaseEnv
 
-ACTION_DIM_AC1 = 4
-ACTION_DIM_AC2 = 3
-OBS_AC1 = 26
-OBS_AC2 = 24
-OBS_ESC_AC1 = 30
-OBS_ESC_AC2 = 29
+#ACTION_DIM_AC1 = 4
+ACTION_DIM_AC2 = ACTION_DIM_AC1 = 3
+#OBS_AC1 = 26
+OBS_AC2 = OBS_AC1 = 24
+#OBS_ESC_AC1 = 30
+OBS_ESC_AC2 = OBS_ESC_AC1 = 29
 
 class LowLevelEnv(HHMARLBaseEnv):
     """
@@ -167,7 +167,10 @@ class LowLevelEnv(HHMARLBaseEnv):
                         actions = action
                         rewards[i] = 0
                         if self.sim.unit_exists(self.opp_to_attack[i]):
-                            opp_stats[i] = [self._focus_angle(self.opp_to_attack[i], i, True), self._distance(i, self.opp_to_attack[i])]
+                            opp_stats[i] = {"dist": round(self._distance(i, self.opp_to_attack[i],True),4), 
+                                            "ata_ag": round(self._focus_angle(i, self.opp_to_attack[i],True),4), "aa_ag": round(self._aspect_angle(self.opp_to_attack[i],i,True),4),
+                                            "ata_opp": round(self._focus_angle(self.opp_to_attack[i], i,True),4), "aa_opp": round(self._aspect_angle(i, self.opp_to_attack[i],True),4),
+                                            }
 
                     rewards = self._take_base_action("LowLevel",u,i,self.opp_to_attack[i],actions,rewards)
 

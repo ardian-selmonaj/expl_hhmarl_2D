@@ -11,6 +11,7 @@ from warsim.scenplotter.scenario_plotter import PlotConfig, ColorRGBA, StatusMes
 from warsim.simulator.cmano_simulator import Position, CmanoSimulator, UnitDestroyedEvent
 from warsim.simulator.ac1 import Rafale
 from warsim.simulator.ac2 import RafaleLong
+from warsim.simulator.ac3 import RafaleMod
 from utils.geodesics import geodetic_direct
 from utils.map_limits import MapLimits
 from utils.angles import sum_angles
@@ -24,12 +25,12 @@ colors = {
     'waypoint_fill': ColorRGBA(0.8, 0.8, 0.2, 0.2)
 }
 
-ACTION_DIM_AC1 = 4
-ACTION_DIM_AC2 = 3
-OBS_AC1 = 26
-OBS_AC2 = 24
-OBS_ESC_AC1 = 30
-OBS_ESC_AC2 = 29
+#ACTION_DIM_AC1 = 4
+ACTION_DIM_AC2 = ACTION_DIM_AC1 = 3
+#OBS_AC1 = 26
+OBS_AC2 = OBS_AC1 = 24
+#OBS_ESC_AC1 = 30
+OBS_ESC_AC2 = OBS_ESC_AC1 = 29
 
 class HHMARLBaseEnv(MultiAgentEnv):
     """
@@ -89,20 +90,30 @@ class HHMARLBaseEnv(MultiAgentEnv):
         terminateds = truncateds = {}
         truncateds["__all__"] = terminateds["__all__"] = self.alive_agents <= 0 or self.alive_opps <= 0 or self.steps >= self.args.horizon
         if self.args.eval_info:
-            af = ae = of = oe = ast = ost = 0
-            opps_selection = {"opp1":0, "opp2":0, "opp3":0}
+            af = afe = ae = of = oaf = oe = ast = ost = 0
+            opps_selection = {"opp1":0, "opp2":0, "opp3":0, "opp4":0, "opp5":0}
             for k, v in action.items():
                 if self.sim.unit_exists(k):
-                    if v:
-                        if k <= self.args.num_agents: 
-                            af+=1; ast+=1; opps_selection[f"opp{v}"]+=1
-                        else: of+=1; ost+=1
+                    if k <= self.args.num_agents:
+                        ast+=1
+                        if v==1: afe+= 1
+                        elif v >=2: af += 1; opps_selection[f"opp{v-1}"]
+                        else: ae+=1
                     else:
-                        if k <= self.args.num_agents: ae+=1; ast+=1
-                        else: oe += 1; ost+=1
+                        ost +=1
+                        if v==1: oaf+=1
+                        elif v>=2: of+=1
+                        else: oe+=1
+                    # if v:
+                    #     if k <= self.args.num_agents: 
+                    #         af+=1; ast+=1; opps_selection[f"opp{v}"]+=1
+                    #     else: of+=1; ost+=1
+                    # else:
+                    #     if k <= self.args.num_agents: ae+=1; ast+=1
+                    #     else: oe += 1; ost+=1
 
             info = {"agents_win": int(self.alive_opps<=0 and self.steps<self.args.horizon), "opps_win": int(self.alive_agents<=0 and self.steps<self.args.horizon), "draw": int(self.steps>=self.args.horizon and self.alive_agents>0 and self.alive_opps>0), \
-             "agent_fight": af, "agent_escape":ae, "opp_fight":of, "opp_escape":oe, "agent_steps":ast, "opp_steps":ost}
+             "agent_fight": af, "agent_fight_engage": afe, "agent_escape":ae, "opp_fight":of, "opp_fight_engage":oaf, "opp_escape":oe, "agent_steps":ast, "opp_steps":ost}
             info.update(opps_selection)
         else: info = {}
 
@@ -221,7 +232,7 @@ class HHMARLBaseEnv(MultiAgentEnv):
         if bool(actions[unit_id][2]) and unit.cannon_remain_secs > 0:
             unit.fire_cannon()
             if mode=="LowLevel" and unit_id <= self.args.num_agents:
-                if self.agent_mode == "escape" and unit.cannon_remain_secs < 90:
+                if self.args.engage or self.agent_mode == "escape" and unit.cannon_remain_secs < 90:
                     rewards[unit_id] -= 0.1
 
         if unit.ac_type == 1 and bool(actions[unit_id][3]):
@@ -238,7 +249,7 @@ class HHMARLBaseEnv(MultiAgentEnv):
         return rewards
 
     def _combat_rewards(self, events, opp_stats=None, mode="LowLevel"):
-        """"
+        """
         Calculating Rewards. 
         First check for out-of-boundary, then killing rewards.
         """
@@ -262,6 +273,26 @@ class HHMARLBaseEnv(MultiAgentEnv):
                     else:
                         self.alive_opps -= 1
 
+        if mode == "LowLevel" and self.agent_mode == "fight" and self.args.engage:
+            for ag_id in range(1, self.args.num_agents+1):
+                if self.opp_to_attack[ag_id]:
+                    opp_id = self.opp_to_attack[ag_id]
+                    if self.sim.unit_exists(ag_id) and self.sim.unit_exists(opp_id):
+                        # d = opp_stats[ag_id]["dist"] - round(self._distance(ag_id, opp_id,True),4)
+                        # a = opp_stats[ag_id]["aa_ag"] - round(self._aspect_angle(opp_id,ag_id,True),4)
+                        # rews[ag_id].append(d + a)
+
+                        if self._distance(ag_id,opp_id) < 0.05:
+                            if self._focus_angle(ag_id, opp_id) < 10 and self._aspect_angle(opp_id, ag_id, False) < 20:
+                                rews[ag_id].append(2)
+                                self.alive_opps -= 1
+                                self.sim.remove_unit(opp_id)
+                            elif self._focus_angle(opp_id, ag_id) < 10 and self._aspect_angle(ag_id, opp_id, False) < 20:
+                                rews[ag_id].append(-2)
+                                self.alive_agents -= 1
+                                self.sim.remove_unit(ag_id)
+                                destroyed_ids.append(ag_id)
+
         #event rewards
         for ev in events:
 
@@ -271,15 +302,19 @@ class HHMARLBaseEnv(MultiAgentEnv):
                 #killed opp
                 if ev.unit_destroyed.id in range(self.args.num_agents+1, self.args.total_num+1):
                     if mode=="LowLevel":
-                        if self.agent_mode == "fight":
-                            if ev.origin.id >= self.args.total_num+1: #killed by rocket
-                                rews[ev.unit_killer.id].append(self._shifted_range(ev.unit_killer.missile_remain/ev.unit_killer.rocket_max, 0,1, 1,1.5)*s)
-                            else:
-                                rews[ev.unit_killer.id].append((self._shifted_range(ev.unit_killer.cannon_remain_secs/ev.unit_killer.cannon_max, 0,1, 0.5,1) + self._shifted_range(opp_stats[ev.unit_killer.id][0], 0,1, 0.5,1))*s)
-                        else:
-                            # no reward for killing in escape mode
+                        # if self.agent_mode == "fight":
+                        #     if ev.origin.id >= self.args.total_num+1: #killed by rocket
+                        #         rews[ev.unit_killer.id].append(self._shifted_range(ev.unit_killer.missile_remain/ev.unit_killer.rocket_max, 0,1, 1,1.5)*s)
+                        #     else:
+                        #         rews[ev.unit_killer.id].append((self._shifted_range(ev.unit_killer.cannon_remain_secs/ev.unit_killer.cannon_max, 0,1, 0.5,1) + self._shifted_range(opp_stats[ev.unit_killer.id][0], 0,1, 0.5,1))*s)
+                        # else:
+                        #     # no reward for killing in escape mode
+                        #     pass
+                        #     #rews[ev.unit_killer.id].append(1)
+                        if self.agent_mode =="escape":
                             pass
-                            #rews[ev.unit_killer.id].append(1)
+                        elif not self.args.engage:
+                            rews[ev.unit_killer.id].append(1*s)
                     else:
                         #constant reward for killing in High-Level Env
                         rews[ev.unit_killer.id].append(1)
@@ -289,7 +324,7 @@ class HHMARLBaseEnv(MultiAgentEnv):
                 #friendly kill
                 elif ev.unit_destroyed.id <= self.args.num_agents:
                     if mode=="LowLevel":
-                        rews[ev.unit_killer.id].append(-2*s)
+                        rews[ev.unit_killer.id].append(-1*s)
                         if self.args.friendly_punish:
                             rews[ev.unit_destroyed.id].append(-2*s)
                             destroyed_ids.append(ev.unit_destroyed.id)
@@ -330,20 +365,25 @@ class HHMARLBaseEnv(MultiAgentEnv):
                 if self.args.level==5:
                     self.policy = {"fight_1": torch.load(os.path.join(policy_dir, 'L5_AC1_fight.pt')), "fight_2": torch.load(os.path.join(policy_dir, 'L5_AC2_fight.pt'))}
         else:
-            self.policy["fight_1"] = torch.load(os.path.join(policy_dir, f'L{self.args.eval_level_ag}_AC1_fight.pt'))
-            self.policy["fight_2"] = torch.load(os.path.join(policy_dir, f'L{self.args.eval_level_ag}_AC2_fight.pt'))
-            try:
-                self.policy["escape_1"] = torch.load(os.path.join(policy_dir, f'L5_AC1_escape.pt'))
-                self.policy["escape_2"] = torch.load(os.path.join(policy_dir, f'L5_AC2_escape.pt'))
-            except:
-                # if escape was not trained against L5_fight
-                self.policy["escape_1"] = torch.load(os.path.join(policy_dir, f'L3_AC1_escape.pt'))
-                self.policy["escape_2"] = torch.load(os.path.join(policy_dir, f'L3_AC2_escape.pt'))
+            self.policy["fight_1"] = torch.load(os.path.join(policy_dir, f'L3_AC1_fight.pt'))
+            self.policy["fight_2"] = torch.load(os.path.join(policy_dir, f'L3_AC2_fight.pt'))
+            self.policy["engage_1"] = torch.load(os.path.join(policy_dir, f'L3_AC1_engage.pt'))
+            self.policy["engage_2"] = torch.load(os.path.join(policy_dir, f'L3_AC2_engage.pt'))
+            self.policy["escape_1"] = torch.load(os.path.join(policy_dir, f'L3_AC1_escape.pt'))
+            self.policy["escape_2"] = torch.load(os.path.join(policy_dir, f'L3_AC2_escape.pt'))
 
-            if not self.args.eval_hl:
-                # if evaluating purely low-level policies without commander
-                self.policy["fight_1_opp"] = torch.load(os.path.join(policy_dir, f'L{self.args.eval_level_opp}_AC1_fight.pt'))
-                self.policy["fight_2_opp"] = torch.load(os.path.join(policy_dir, f'L{self.args.eval_level_opp}_AC2_fight.pt'))
+            # try:
+            #     self.policy["escape_1"] = torch.load(os.path.join(policy_dir, f'L5_AC1_escape.pt'))
+            #     self.policy["escape_2"] = torch.load(os.path.join(policy_dir, f'L5_AC2_escape.pt'))
+            # except:
+            #     # if escape was not trained against L5_fight
+            #     self.policy["escape_1"] = torch.load(os.path.join(policy_dir, f'L3_AC1_escape.pt'))
+            #     self.policy["escape_2"] = torch.load(os.path.join(policy_dir, f'L3_AC2_escape.pt'))
+
+            # if not self.args.eval_hl:
+            #     # if evaluating purely low-level policies without commander
+            #     self.policy["fight_1_opp"] = torch.load(os.path.join(policy_dir, f'L3_AC1_fight.pt'))
+            #     self.policy["fight_2_opp"] = torch.load(os.path.join(policy_dir, f'L3_AC2_fight.pt'))
         return
 
     def _policy_actions(self, policy_type, agent_id, unit):
@@ -358,14 +398,14 @@ class HHMARLBaseEnv(MultiAgentEnv):
             if unit.ac_type == 1:
                 return {
                     "obs_1_own": torch.tensor(obs),
-                    "obs_2": torch.zeros((1,OBS_AC2 if policy_type=="fight" else OBS_ESC_AC2)),
+                    "obs_2": torch.zeros((1,OBS_AC2 if policy_type in ["fight","engage"] else OBS_ESC_AC2)),
                     "act_1_own": torch.zeros((1,ACTION_DIM_AC1)),
                     "act_2": torch.zeros((1,ACTION_DIM_AC2)),
                 }
             else:
                 return {
                     "obs_1_own": torch.tensor(obs),
-                    "obs_2": torch.zeros((1,OBS_AC1 if policy_type=="fight" else OBS_ESC_AC1)),
+                    "obs_2": torch.zeros((1,OBS_AC1 if policy_type in ["fight","engage"] else OBS_ESC_AC1)),
                     "act_1_own": torch.zeros((1,ACTION_DIM_AC2)),
                     "act_2": torch.zeros((1,ACTION_DIM_AC1)),
                 }
@@ -443,8 +483,9 @@ class HHMARLBaseEnv(MultiAgentEnv):
         Aspect angle: angle from agent_id tail to opp_id, regardless of heading of opp_id.
         """
         focus = self._focus_angle(agent_id, opp_id)
-        sign = self._correct_angle_sign(self.sim.get_unit(agent_id), self.sim.get_unit(opp_id))
-        return (abs((focus*sign)-180)%359)/359 if norm else abs((focus*sign)-180)%359
+        #sign = self._correct_angle_sign(self.sim.get_unit(agent_id), self.sim.get_unit(opp_id))
+        #return (abs((focus*sign)-180)%359)/359 if norm else abs((focus*sign)-180)%359
+        return np.clip((180 - focus)/180,0,1) if norm else np.clip(180-focus,0,180)
 
     def _heading_diff(self, agent_id, opp_id, norm=True):
         """
@@ -501,6 +542,11 @@ class HHMARLBaseEnv(MultiAgentEnv):
                     x = random.uniform(7.16, 7.17)
                     y = random.uniform(5.1 + i*0.1, 5.11 + i*0.1)
                     a = random.randint(200, 330)
+
+                # x = random.uniform(7.05, 7.25)
+                # y = random.uniform(5.07 + i *0.12, 5.08 + i*0.12)
+                # a = (random.uniform(0,120) - 60) % 359
+
             elif self.args.level == 2:
                 if r == 1:
                     x = random.uniform(7.08, 7.13)
@@ -528,6 +574,11 @@ class HHMARLBaseEnv(MultiAgentEnv):
                 elif r == 2:
                     x = random.uniform(7.12, 7.14)
                     y = random.uniform(5.1 + i*0.1, 5.11 + i*0.1)
+
+                # x = random.uniform(7.10, 7.20)
+                # y = random.uniform(5.13 + i *0.12, 5.14 + i*0.12)
+                # a = (random.uniform(0,20) - 10)%359
+
             elif self.args.level == 2:
                 if r == 1:
                     x = random.uniform(7.18, 7.23)
@@ -558,25 +609,48 @@ class HHMARLBaseEnv(MultiAgentEnv):
             for i in range(count):
                 x, y, a = self._sample_state(group, i, r)
                 #at least one aircraft type (ac) per group
-                ac = i+1 if i <=1 else random.randint(1,2)
-                if ac == 1:
-                    unit = Rafale(Position(y, x, 10_000), heading=a, speed=0 if self.args.level<=2 and group=="opp" else 100, group=group, friendly_check=self.args.friendly_kill)
-                else:
-                    unit = RafaleLong(Position(y, x, 10_000), heading=a, speed=0 if self.args.level<=2 and group=="opp" else 100, group=group, friendly_check=self.args.friendly_kill)
+                # ac = i+1 if i <=1 else random.randint(1,2)
+                # if ac == 1:
+                #     unit = Rafale(Position(y, x, 10_000), heading=a, speed=0 if self.args.level<=2 and group=="opp" else 100, group=group, friendly_check=self.args.friendly_kill)
+                # else:
+                #     unit = RafaleLong(Position(y, x, 10_000), heading=a, speed=0 if self.args.level<=2 and group=="opp" else 100, group=group, friendly_check=self.args.friendly_kill)
 
-                if mode == "LowLevel":
-                    if self.args.level <= 4 and group == "opp":
-                        unit.cannon_max = unit.cannon_remain_secs = 400
-                        if ac == 1:
-                            unit.missile_remain = unit.rocket_max = 8
-                    elif self.args.level == 5:
-                        unit.cannon_max = unit.cannon_remain_secs = 300
-                        if ac == 1:
-                            unit.missile_remain = unit.rocket_max = 6
-                else:
-                    unit.cannon_max = unit.cannon_remain_secs = 300
-                    if ac == 1:
-                        unit.missile_remain = unit.rocket_max = 8
+                # if mode == "LowLevel":
+                #     if self.args.level <= 4 and group == "opp":
+                #         unit.cannon_max = unit.cannon_remain_secs = 400
+                #         if ac == 1:
+                #             unit.missile_remain = unit.rocket_max = 8
+                #     elif self.args.level == 5:
+                #         unit.cannon_max = unit.cannon_remain_secs = 300
+                #         if ac == 1:
+                #             unit.missile_remain = unit.rocket_max = 6
+                # else:
+                #     unit.cannon_max = unit.cannon_remain_secs = 300
+                #     if ac == 1:
+                #         unit.missile_remain = unit.rocket_max = 8
+                
+                # if group == "agent":
+                #     if i == 0:
+                #         x = 7.19
+                #         y = 5.12
+                #         a = 10
+                #     elif i == 1:
+                #         x = 7.16
+                #         y = 5.22
+                #         a = 10
+
+                # else:
+                #     if i == 0:
+                #         x = 7.17
+                #         y = 5.15
+                #         a = 0
+                #     elif i == 1:
+                #         x = 7.15
+                #         y = 5.25
+                #         a = 0
+                # unit = RafaleMod(Position(y, x, 10_000), heading=a, speed=0 , group=group, friendly_check=self.args.friendly_kill)
+
+                unit = RafaleMod(Position(y, x, 10_000), heading=a, speed=0 if self.args.level<=2 and group=="opp" else 100, group=group, friendly_check=self.args.friendly_kill)
 
                 self.sim.add_unit(unit)
                 self.sim.record_unit_trace(unit.id)

@@ -21,12 +21,12 @@ from models.ac_models_hetero import Esc1, Esc2, Fight1, Fight2
 from config import Config
 from envs.env_hetero import LowLevelEnv
 
-ACTION_DIM_AC1 = 4
-ACTION_DIM_AC2 = 3
-OBS_AC1 = 26
-OBS_AC2 = 24
-OBS_ESC_AC1 = 30
-OBS_ESC_AC2 = 29
+#ACTION_DIM_AC1 = 4
+ACTION_DIM_AC2 = ACTION_DIM_AC1 = 3
+#OBS_AC1 = 26
+OBS_AC2 = OBS_AC1 = 24
+#OBS_ESC_AC1 = 30
+OBS_ESC_AC2 = OBS_ESC_AC1 = 29
 POLICY_DIR = 'policies'
 
 def update_logs(args, log_dir, level, epoch):
@@ -90,7 +90,7 @@ def evaluate(args, algo, env, epoch, level, it):
         step += 1
         if args.render:
             env.plot(Path(args.log_path, "current.png"))
-            time.sleep(0.18)
+            time.sleep(0.2)
 
     reward = round(reward, 3)
     env.plot(Path(args.log_path, f"Ep_{epoch}_It_{step}_Lv{level}_Rew_{reward}.png"))
@@ -103,7 +103,7 @@ def make_checkpoint(args, algo, log_dir, epoch, level, env=None):
             algo.export_policy_model(os.path.join(os.path.dirname(__file__), POLICY_DIR), f'ac{it+1}_policy')
             policy_name = f'L{args.level}_AC{it+1}_{args.agent_mode}'
             os.rename(f'{POLICY_DIR}/model.pt', f'{POLICY_DIR}/{policy_name}.pt')
-        if args.eval and epoch%500==0:
+        if args.eval and epoch%200==0:
             evaluate(args, algo, env, epoch, level, it)
 
 def get_policy(args):
