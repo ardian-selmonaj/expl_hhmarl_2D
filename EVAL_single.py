@@ -7,6 +7,8 @@ from ray.rllib.policy import Policy
 import os
 from models.ac_models_hier import CommanderGru
 from ray.rllib.models import ModelCatalog
+from matplotlib.colors import LinearSegmentedColormap
+
 ModelCatalog.register_custom_model("commander_model",CommanderGru)
 
 N_OPP_HL = 2 #sensing
@@ -123,7 +125,12 @@ X, Y, Z = np.meshgrid(np.arange(0, Nh*10, 10), np.arange(0, Na*10, 10), np.arang
 dmin = actions.min()
 dptp = np.ptp(actions)
 
-def colorize(d, cmap=cm.viridis):
+custom_cmap = LinearSegmentedColormap.from_list(
+    'custom_cmap',
+    [(0, 0, 0.5), (0.27, 0.51, 0.71), (0.7, 0.7, 0.7)]
+)
+
+def colorize(d, cmap=custom_cmap):
     shape = d.shape
     return cmap(((d-dmin)/(dptp+1e-10)).flatten()).reshape((*shape, 4))
 
@@ -170,4 +177,4 @@ ax.set(
 ax.view_init(elev=16, azim=30)
 
 # Show Figure
-plt.savefig('sing00.png')
+plt.savefig('res00.png', bbox_inches="tight")
